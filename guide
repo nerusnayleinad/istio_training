@@ -421,7 +421,7 @@ date: Thu, 09 Apr 2020 01:59:07 GMT
 server: istio-envoy
 
 # Vamos a crear un DestinationRule para decirle a Istio qué servicio debería usar
-# mtls. El DestinationRule es la del fichero `2.- destination-rule`.
+# mtls. El DestinationRule es dr-server.yaml.
 
 $ kubectl create -f ... -n istio
 destinationrule.networking.istio.io/mtls-for-server created
@@ -437,8 +437,59 @@ etag: "5e8e6ede-26"
 accept-ranges: bytes
 x-envoy-upstream-service-time: 7
 
+# Por último, vamos a crear otro servicio nginx-bis, y vamos a intentar llegar 
+# desde el curler en el mismo namespace. Recordemos que estamos en STRICT mode
+# aún.
+
+$ kubectl exec -it curler-6885d9fd97-rbcpn -n istio -- curl nginx-bis
+upstream connect error or disconnect/reset before headers. reset reason: connection termination
+
+# Creemos el DestinationRule dr-nginx-bis.yaml, y volvamos a hacer el request.
+# los DestinationRule se aplican en dos escenarios. O tiene que estar en el ns
+# istio-system, o en el namespace del servidor. En este caso lo haremos en el ns
+# istio-system, lo que hará que todos los servicios se comuniquen por mTLS.
+
+$ kubectl create -f dr-nginx-bis.yaml
+$ kubectl exec -it curler-6885d9fd97-rbcpn -n istio -- curl nginx-bis
+...
+<title>Welcome to nginx!</title>
+
 --------------------------------------------------------------------------------
 
+********************************************************************************
+*                                  EGRESS                                      *
+********************************************************************************
+
+# Para el egress, tenemos que tener en cuenta dos cosas. La primera es que si la
+# política de tráfico externo no está puesto en ALLOW_ANY, tengo que tener los
+# servicios; a los que espero acceder, en un ServiceEntry. Y la segunda es si quier
+# acceder a esos servicios directamente desde el pod o desde un punto centralizado;
+# como istio-egressgateway.
+#
+# Vamos a poner el mesh en modo REGISTRY_ONLY. Recordemos que no podemos acceder
+# a ningún servicio. Vamos a ver cómo lo solucionamos.
+
+...
+configmap/istio edited
+$ kubectl exec -it alpine-7b8bb54698-qsfgj -n istio sh
+/ # apk update
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/main/x86_64/APKINDEX.tar.gz
+ERROR: http://dl-cdn.alpinelinux.org/alpine/v3.11/main: remote server returned error (try 'apk update')
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/community/x86_64/APKINDEX.tar.gz
+ERROR: http://dl-cdn.alpinelinux.org/alpine/v3.11/community: remote server returned error (try 'apk update')
+v3.11.5-41-g3deb517cec [http://dl-cdn.alpinelinux.org/alpine/v3.11/main]
+v3.11.5-39-g0b5b5381b3 [http://dl-cdn.alpinelinux.org/alpine/v3.11/community]
+2 errors; 11268 distinct packages available
+
+# Para poder hacer `apk update`, necesitamos acceso a `alpinelinux.org`. Vamos a
+# crear un ServiceEntry para `alpinelinux.org`. El service entry se encuentra en
+# el ficher egress, y se llama se-alpine.yaml.
+
+$ kubectl create -f se-alpine.yaml -n istio
+
+********************************************************************************
+*                                 TRACING                                      *
+********************************************************************************
 
 
 # modes here: https://istio.io/docs/reference/config/networking/destination-rule/#TLSSettings-TLSmode
