@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-trace-4th-hop-b
+  labels:
+    trace: jaeger-4b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      trace: jaeger-4b
+  template:
+    metadata:
+      labels:
+        trace: jaeger-4b
+    spec:
+      containers:
+      - name: jaeger-trace
+        image: viejo/jaeger-trace:10
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NEXT_HOP
+          value: 'http://fifth-hop.istio-server.svc.cluster.local'
+        - name: DELAY
+          value: '2'
