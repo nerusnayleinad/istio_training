@@ -314,6 +314,15 @@ HASTA AQUÍ EL PERÍMETRO DEL MESH DE ISTIO
 ********************************************************************************
 *                                 ROUTING                                      *
 ********************************************************************************
+Explicar:
+  - Gateway
+  - VirtualService
+  - DestinationRule
+  - ServiceEntry
+  
+> Empezar ejemplo 1.- ingress
+
+# Crear el secret para el Gateway para `domain.com`
 
 $ openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -subj '/O=domain Inc./CN=domain.com' -keyout domain.com.key -out domain.com.crt
 $ openssl req -out ackstorm.domain.com.csr -newkey rsa:2048 -nodes -keyout ackstorm.domain.com.key -subj "/CN=ackstorm.domain.com/O=ackstorm organization"
@@ -324,12 +333,111 @@ $ kubectl create -n istio-system secret tls istio-ingressgateway-certs --key ack
 # Check and see if the certs are under /etc/istio/ingressgateway-certs path; in
 # istio-ingressgateway pod.
 
+# Crear los objetos configMap, Deployments y el Service
 
+$ kubectl create -f ... -f ... -n istio
 
+# los dos deployments están sirviendo en /path1/. hacer una prueba básica para 
+# ver que funciona.
 
+$ kubectl run -ti curler --image viejo/curl -n istio sh
+/ # for i in `seq 1 10`; do curl server/path1/; echo; done
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
 
+# Ahora vamos a crear los objectos de Istio (Gateway, VirtualService y DestinationRule)
 
+$ kubectl create -f ... -f ... -n istio
 
+# Es posible que nos devuelva un 404. La razón es porque curl lo resuelve al
+# ackstorm.domain.com, que existe, y no es capaz de redirigirlo correctamente.
+
+$ curl -H "Host: ackstorm.domain.com" 34.65.150.207/adios/ -ILk
+HTTP/1.1 301 Moved Permanently
+location: https://ackstorm.domain.com/adios/
+date: Thu, 09 Apr 2020 01:20:55 GMT
+server: istio-envoy
+transfer-encoding: chunked
+
+HTTP/1.1 404 Not Found
+Date: Thu, 09 Apr 2020 01:20:56 GMT
+Content-Type: text/html
+Content-Length: 867
+Connection: keep-alive
+Keep-Alive: timeout=30
+Server: Apache/2
+X-Robots-Tag: noindex, nofollow
+Last-Modified: Fri, 10 Jan 2020 16:05:10 GMT
+Accept-Ranges: bytes
+
+# Se puede resolver de dos formas.
+#
+# 1.- Añadiendo `34.65.150.207  ackstorm.domain.com` al /etc/hosts
+# 2.- forzando a curl a resolverlo siempre
+# 
+# La segunda opción se demuestra abajo
+
+$ for i in {1..10}; do curl --resolve ackstorm.domain.com:443:34.65.150.207 https://ackstorm.domain.com:443/adios/ -k; echo; done
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+
+$ for i in {1..10}; do curl -H "end-user: ackstorm" --resolve ackstorm.domain.com:443:34.65.150.207 https://ackstorm.domain.com:443/hola/ -k; echo; done
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+
+# Recordemos que estabamos en modo PERMISSIVE, con ALLOW_ALY para outgoing traffic.
+# Vamos a cambiar el modo de PERMISSIVE a STRICT, y volver a hacer el curl.
+
+$ kubectl edit meshpolicy
+$ curl --resolve ackstorm.domain.com:443:34.65.150.207 https://ackstorm.domain.com:443/adios/ -Ik
+HTTP/2 503
+content-length: 95
+content-type: text/plain                <- plain text. Es por eso que falla
+date: Thu, 09 Apr 2020 01:59:07 GMT
+server: istio-envoy
+
+# Vamos a crear un DestinationRule para decirle a Istio qué servicio debería usar
+# mtls. El DestinationRule es la del fichero `2.- destination-rule`.
+
+$ kubectl create -f ... -n istio
+destinationrule.networking.istio.io/mtls-for-server created
+
+$ curl --resolve ackstorm.domain.com:443:34.65.150.207 https://ackstorm.domain.com:443/adios/ -Ik
+HTTP/2 200
+server: istio-envoy
+date: Thu, 09 Apr 2020 02:04:31 GMT
+content-type: text/html                 <- ahora ya no es plain text
+content-length: 38
+last-modified: Thu, 09 Apr 2020 00:39:58 GMT
+etag: "5e8e6ede-26"
+accept-ranges: bytes
+x-envoy-upstream-service-time: 7
+
+--------------------------------------------------------------------------------
 
 
 
