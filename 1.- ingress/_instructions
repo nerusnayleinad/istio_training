@@ -1,0 +1,239 @@
+https://istio.io/docs/tasks/traffic-management/ingress/secure-ingress-mount/
+
+
+For this example to be on HTTPS, we are going to create a certificate and put it in a secret for istio to use it.
+
+This command creates the CA for example.com
+$ openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -subj '/O=example Inc./CN=example.com' -keyout example.com.key -out example.com.crt
+
+This commands creates the actual certificates for httpbin.example.com, using the CA.
+$ openssl req -out httpbin.example.com.csr -newkey rsa:2048 -nodes -keyout httpbin.example.com.key -subj "/CN=httpbin.example.com/O=httpbin organization"
+$ openssl x509 -req -days 365 -CA example.com.crt -CAkey example.com.key -set_serial 0 -in httpbin.example.com.csr -out httpbin.example.com.crt
+
+$ kubectl create -n istio-system secret tls istio-ingressgateway-certs --key httpbin.example.com.key --cert httpbin.example.com.crt
+
+Note: The secret must be named istio-ingressgateway-certs in the istio-system namespace to align with the 
+configuration of the Istio default ingress gateway used in this task.
+
+Note: The certs will be under `/etc/istio/ingressgateway-certs` path.
+
+root@v1-16-master:~/certs# kubectl get secret istio-ingressgateway-certs -n istio-system -oyaml
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMzakNDQWNZQ0FRQXdEUVlKS29aSWh2Y05BUUVMQlFBd0xURVZNQk1HQTFVRUNnd01aWGhoYlhCc1pTQkoKYm1NdU1SUXdFZ1lEVlFRRERBdGxlR0Z0Y0d4bExtTnZiVEFlRncweU1EQXhNREl4T0RBek5UUmFGdzB5TVRBeApNREV4T0RBek5UUmFNRDB4SERBYUJnTlZCQU1NRTJoMGRIQmlhVzR1WlhoaGJYQnNaUzVqYjIweEhUQWJCZ05WCkJBb01GR2gwZEhCaWFXNGdiM0puWVc1cGVtRjBhVzl1TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEEKTUlJQkNnS0NBUUVBbitQeElPbHNqeEpwU3hnTUZsemFIdkZ2c2g1cDBmV085TVMyd2VOTWZjaHgwY1Y0Y2ZZNgpjdGVqejZMd0hkcFBldVdkK0NLdURVeDdlL3BIZTc4cVM1VWFWL1NsS21nNHBlKzRwM1ZPVk4wOGNVL1dKSEZJCm42aDYrR0V5ek0wNExwREpXVkwxTys1dXRSVFhKdmRCMUVIMkN5QVFWNXA0QzQyR2hXVGlYV3V3R1l5N2dCdkwKWms1cmRJZUZ2U0xPdzczeWkxUzNqZVpEVktyL3ArZ0RwYjQ5bU1HTkl5a2I4TWcwblY5elBDMHZqN1E1K2Y5ZQpIR0l3ZWJmWVpLVnRwYktRMFBhS05wM1JmOExsYkNrRW9ub3czbS84OEVJRTZVS2xMdXBrUUV6VVdXS0k1OFlOCk0ySTVZcWRMcnRmWVg3cGVRejBWV1BXMDFzVytJOXd0ZFFJREFRQUJNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUIKQVFCaEJXY2R0WDR3Uk1seDk0czRBYWhpSm1oNkN0VjJHVEVsT0poOUY1MlduanNFWTg1OThvTDI0NkwvbDlFTgpvNHRLVFpHZTRlWm9vaVhUZkV1Zm80aVBGTTE0c0tCZTl4aGczQ1pOdkY0ZU5aYnpMeU9lbVQxV25aeldBRVBxCnZKMHA4RDlJMUdMTmh3YWQvWkJSbXp1YTFjeW56bUVsSnJFS2NhNTlJR1N0ZzlqVFNlS2dRTUJUOFJhdjZ6MjAKOGdZaURkcVNqV2tQRkIweldNUlNQY0llcmdvU2RvNHRHVmxSbGt4S0xoM0x1SUw5d1ZBR1YvRm9va1Y4THF0RwpsK0hlUTJ4dmFRQ0N2M0FMSHdzK2cyNEJENDVRdUVYNmR2M1RTTHM4c3NGRWFRNUtkaTkwSUZpWGd6bGRRdzJqClY0Kzh5WTFDY3NaWXhpbnlHdzVKN2w0agotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2QUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktZd2dnU2lBZ0VBQW9JQkFRQ2Y0L0VnNld5UEVtbEwKR0F3V1hOb2U4Vyt5SG1uUjlZNzB4TGJCNDB4OXlISFJ4WGh4OWpweTE2UFBvdkFkMms5NjVaMzRJcTROVEh0Nwora2Q3dnlwTGxScFg5S1VxYURpbDc3aW5kVTVVM1R4eFQ5WWtjVWlmcUhyNFlUTE16VGd1a01sWlV2VTc3bTYxCkZOY205MEhVUWZZTElCQlhtbmdMallhRlpPSmRhN0Faakx1QUc4dG1UbXQwaDRXOUlzN0R2ZktMVkxlTjVrTlUKcXYrbjZBT2x2ajJZd1kwaktSdnd5RFNkWDNNOExTK1B0RG41LzE0Y1lqQjV0OWhrcFcybHNwRFE5b28ybmRGLwp3dVZzS1FTaWVqRGViL3p3UWdUcFFxVXU2bVJBVE5SWllvam54ZzB6WWpsaXAwdXUxOWhmdWw1RFBSVlk5YlRXCnhiNGozQzExQWdNQkFBRUNnZ0VBZFRYWkwwSk85YmNPZnlFNnd5NEFMRXpiajl5aHdHdmVCMnNwZW9zUktPaEgKSC9zOTUzVVV0ZG1FMlpMZHFWUy9qUjFFcDRGc3pJenp2UmZsVFQ3L1YzY1BYOGtWUnpndHh0OHNJMzVvRk9nMgpCZTc3MGExR0N0eXNnT1pvSWlDUy9mZmYwdDV3cmlXRS9MUXhZUHhEUXNHMEI4WFNsUlhFeU50UDhQdmF3WlltCkplUlIzanFENVlabGF0NUdGSDg1eStKbVBZbnN5UU00K3JhR28ySDk3aENGQkJTenJLMFV1KzY0aG41eUpRdy8KMDBlQ3R4NWdXMzBpLzBaQVNRR0RQKzdOaDQ3MSs4b2tyeXZvcnFYUS9pLzZpSXhCeE1YS3ZvNyt6UW9ycXMzRAprR3IwVVhWVy9tR3pPWG1ldmVyU0hCbGRRN29OVUhvd2JzUjF2N2hZSlFLQmdRRFIvV0NIT1Z2VTNheHBSREVVCk52eVozUmpDVjRtd29UMUMzUUhaeUpHZjVPSjBVdFZsLzdud1dHNEM0dkZXbDdmM0I0SWlsemV4YTYvTElmMXkKN1ZxRVN3SjNIUnBGT25vUFBzclRkd21STWo1TVJZRHpoWkJuNGRSb2VRamdiZTJndW96eHh3OW15UUVybmMwUApoc3RWM1hoSzhoRERJUStKNEVmOEppbUVLd0tCZ1FEQzdHdkR1VDRabXlpZno4RDdvdHo4UDBOMDNkRGRqR3ZHCjF1Sjk5WllQRjhmcndhRy9CWXcwRS8vRzNPSitzTXYzRXJzcHl1MGE3RUJrNGRxTkhVdFkzTlp5bEw2Tjlmd0oKaFlkSUEwWFp0dnM4MmYzQ0JrcERZb0g3bmRscGFJSFFZcjNNdXh3OThmNGF3bEVoUnIwR0JmKzNpdld0TTJDMgo2dThsazFRazN3S0JnSFFreUhjQ2FxQloyenA5MVFkeFFsVjN6SEh4S043Z3o1bGowOW80N1JLYTdnV1lxeDgzClNnaDlZSnVJR2lQaTFvVnpTYThJSkcybE9oNElOcjZTT1RaaXBvSnJQbFI3KzNiakxCdTZBemlqcVlGV0QvU2gKTXpYQjJsSE9YL0tCMnFURGlhRlFrRnd4WU14WEEweExLYnZjT3VSNDdueCtsTEdWc3pycmdKcnhBb0dBZUs3bwpDY1luTExOajg0NHRiWjdvTTBUMy91Tlc3ZFNDNWhrbElkZHJrT3lvV3M4SDFiMFprU1RRdDg4S2JHWUo0bTgyCmNpbXhvM21pWk5Ody9PMm1PTjZCNTI4d2k3UkExNlJVbmNGby9lTE1xbUJOUEZPb3B3L1dhbkxRcVBLTGJQbTEKaVl4UGNBcmp5SzJHalpPK2RIeENWdUV5T29vVTF5dWQ1U1hTY3dFQ2dZQjc2Y01uMWZzbEt4K3hQWWRjWmRwRQp5c3hReW5rOUM4UWNrd25jdVN5emZqY3E4KzlUaUlOaTluQm1ScDRaWWhvR1NDRlArSWJNMlM5NVluVW1nWENVCmZJMm5qRGlCUG9xdDN6T3U5RjdrbEJKaUN6b1o2U3J4YmR2TnlQNkhNeFFTRTEzdHptRSt0Q0VqVmtaL25xMHkKUjdUMXNTbzRkRmZrNUYycVcyVDlOQT09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K
+kind: Secret
+metadata:
+  creationTimestamp: "2020-01-02T18:05:58Z"
+  name: istio-ingressgateway-certs
+  namespace: istio-system
+  resourceVersion: "340200"
+  selfLink: /api/v1/namespaces/istio-system/secrets/istio-ingressgateway-certs
+  uid: 8aa6ce41-d6b1-4537-aea1-b88c5e0862b6
+type: kubernetes.io/tls
+
+root@v1-16-master:~/certs# kubectl exec -it istio-ingressgateway-7b66b7c7c-pdqfj -n istio-system bash
+root@istio-ingressgateway-7b66b7c7c-pdqfj:/# ls /etc/istio/
+ingressgateway-ca-certs  ingressgateway-certs  proxy
+root@istio-ingressgateway-7b66b7c7c-pdqfj:/# ls /etc/istio/ingressgateway-certs/
+tls.crt  tls.key
+
+--------------------------------------------------------------------------------
+
+Create the deployments, configmaps and the service as base for environment for this demo.
+
+Then, create the `Gateway` object, which is just a declaration of how we want the traffic to get into our mesh.
+
+Finally, create the `VirtualService` and `DestinationRule` to configure traffic options, and to set up weight
+for each backend service. In this exampl, 80-20.
+
+
+
+Now, to start the demo, there are several ways of making the requests:
+
+1.- If running on GKE, we are going to have an external IP as entrypoint
+ 
+$ kubectl get svc istio-ingressgateway -n istio-system
+NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP    PORT(S)                                                                                                                                      AGE
+istio-ingressgateway   LoadBalancer   10.4.4.28    34.65.177.60   15020:32763/TCP,80:31380/TCP,443:31390/TCP,31400:31400/TCP,15029:30286/TCP,15030:30954/TCP,15031:30045/TCP,15032:31315/TCP,15443:31901/TCP   6h5m
+
+This is the entrypoint with host name `host1.domain.com`
+
+(from UBUNTU Terminal)
+$ for i in `seq 1 10`; do curl --http1.1 https://host1.domain.com/adios/ -k; echo; done
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - NGINX</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+<h1>THIS IS AN ISTIO DEMO - APACHE</h1>
+
+Note: /etc/hosts contains the following record:
+...
+34.65.177.60    host1.domain.com
+
+2.- If on-prem, that's going to be the NodePort the entrypoint
+
+# kubectl get svc istio-ingressgateway -n istio-system
+NAME                   TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                                                                                      AGE
+istio-ingressgateway   NodePort   10.101.214.243   <none>        15020:32510/TCP,80:31380/TCP,443:31390/TCP,31400:31400/TCP,15029:30267/TCP,15030:30859/TCP,15031:31039/TCP,15032:31710/TCP,15443:31576/TCP   67m
+
+# kubectl get no -owide
+NAME             STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION    CONTAINER-RUNTIME
+v1-16-master     Ready    master   16d   v1.16.4   10.132.0.48   <none>        Ubuntu 16.04.6 LTS   4.15.0-1050-gcp   docker://19.3.5
+v1-16-worker-1   Ready    <none>   16d   v1.16.4   10.132.0.49   <none>        Ubuntu 16.04.6 LTS   4.15.0-1050-gcp   docker://19.3.5
+v1-16-worker-2   Ready    <none>   16d   v1.16.4   10.132.0.50   <none>        Ubuntu 16.04.6 LTS   4.15.0-1050-gcp   docker://19.3.5
+
+/ # curl host1.domain.com/adios/ -ILk
+HTTP/1.1 301 Moved Permanently
+location: https://host1.domain.com/adios/
+date: Wed, 08 Jan 2020 16:52:07 GMT
+server: envoy
+x-envoy-upstream-service-time: 1
+transfer-encoding: chunked
+
+HTTP/1.1 200 OK
+date: Wed, 08 Jan 2020 16:52:07 GMT
+server: istio-envoy
+last-modified: Tue, 07 Jan 2020 17:05:42 GMT
+etag: "7-59b8fc93da168"
+accept-ranges: bytes
+content-length: 7
+content-type: text/html
+x-envoy-upstream-service-time: 3
+
+Note: in this case /etc/hosts contains the following record:
+...
+10.101.214.243   host1.domain.com 
+
+So, we are hitting the service directly from a pod within the mesh.
+
+---
+
+Still from within the pod:
+
+/ # curl -H "Host: host1.domain.com" 10.132.0.48:31380/adios/ -ILk
+HTTP/1.1 301 Moved Permanently
+location: https://host1.domain.com/adios/
+date: Wed, 08 Jan 2020 16:52:02 GMT
+server: istio-envoy
+transfer-encoding: chunked
+
+HTTP/1.1 200 OK
+server: istio-envoy
+date: Wed, 08 Jan 2020 16:52:02 GMT
+content-type: text/html
+content-length: 6
+last-modified: Tue, 07 Jan 2020 17:07:08 GMT
+etag: "5e14babc-6"
+accept-ranges: bytes
+x-envoy-upstream-service-time: 2
+
+---
+
+If we do the same outside the pod, works just fine as inside of a pod:
+
+root@v1-16-master:~# curl -H "Host: host1.domain.com" 10.132.0.48:31380/adios/ -ILk
+HTTP/1.1 301 Moved Permanently
+location: https://host1.domain.com/adios/
+date: Wed, 08 Jan 2020 17:41:37 GMT
+server: istio-envoy
+transfer-encoding: chunked
+
+HTTP/1.1 200 OK
+server: istio-envoy
+date: Wed, 08 Jan 2020 17:41:37 GMT
+content-type: text/html
+content-length: 6
+last-modified: Tue, 07 Jan 2020 17:07:08 GMT
+etag: "5e14babc-6"
+accept-ranges: bytes
+x-envoy-upstream-service-time: 2
+
+$ cat /etc/hosts
+...
+10.101.214.243  host1.domain.com
+
+IMPORTANT NOTE: If we would have set nothing into /etc/hosts, the first request would have respected the 
+header `Host: host1.domain.com`, but when it would got re-directed, it would try to reach the real 
+`domain.com`, and it would fail. Just like the request below.
+
+root@v1-16-master:~# curl -H "Host: host1.domain.com" 10.132.0.48:31380/adios/ -ILk -vvv
+*   Trying 10.132.0.48...
+* Connected to 10.132.0.48 (10.132.0.48) port 31380 (#0)
+> HEAD /adios/ HTTP/1.1
+> Host: host1.domain.com
+> User-Agent: curl/7.47.0
+> Accept: */*
+> 
+< HTTP/1.1 301 Moved Permanently
+HTTP/1.1 301 Moved Permanently
+< location: https://host1.domain.com/adios/
+location: https://host1.domain.com/adios/
+< date: Wed, 08 Jan 2020 17:43:42 GMT
+date: Wed, 08 Jan 2020 17:43:42 GMT
+< server: istio-envoy
+server: istio-envoy
+< transfer-encoding: chunked
+transfer-encoding: chunked
+
+< 
+* Connection #0 to host 10.132.0.48 left intact
+* Issue another request to this URL: 'https://host1.domain.com/adios/'
+*   Trying 66.96.162.92...
+* Connected to host1.domain.com (66.96.162.92) port 443 (#1)    <- HERE WE CAN SEE HOW IT IS TRYING TO RETRIEVE THE CERTS FROM THE REAL DOMAIN.COM
+* error reading ca cert file /etc/ssl/certs/ca-certificates.crt (Error while reading file.)
+* found 592 certificates in /etc/ssl/certs
+* ALPN, offering http/1.1
+* SSL connection using TLS1.2 / ECDHE_RSA_AES_128_GCM_SHA256
+*        server certificate verification SKIPPED
+*        server certificate status verification SKIPPED
+*        common name: *.domain.com (matched)
+*        server certificate expiration date OK
+*        server certificate activation date OK
+*        certificate public key: RSA
+*        certificate version: #3
+*        subject: OU=Domain Control Validated,OU=COMODO SSL Wildcard,CN=*.domain.com
+*        start date: Tue, 04 Jun 2019 00:00:00 GMT
+*        expire date: Sun, 05 Sep 2021 23:59:59 GMT
+*        issuer: C=GB,ST=Greater Manchester,L=Salford,O=Sectigo Limited,CN=Sectigo RSA Domain Validation Secure Server CA
+*        compression: NULL
+* ALPN, server accepted to use http/1.1
+> HEAD /adios/ HTTP/1.1
+> Host: host1.domain.com
+> User-Agent: curl/7.47.0
+> Accept: */*
+> 
+< HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+< Date: Wed, 08 Jan 2020 17:43:43 GMT
+Date: Wed, 08 Jan 2020 17:43:43 GMT
+< Content-Type: text/html
+Content-Type: text/html
+< Content-Length: 863
+Content-Length: 863
+< Connection: keep-alive
+Connection: keep-alive
+< Keep-Alive: timeout=30
+Keep-Alive: timeout=30
+< Server: Apache/2
+Server: Apache/2
+< Last-Modified: Wed, 02 Aug 2017 19:17:35 GMT
+Last-Modified: Wed, 02 Aug 2017 19:17:35 GMT
+< Accept-Ranges: bytes
+Accept-Ranges: bytes
+
+< 
+* Connection #1 to host host1.domain.com left intact
+
+When we set the record `10.101.214.243  host1.domain.com` inside /etc/hosts, we are assuring it thinks
+`domain.com` is pointing to the service, so when it gets re-directed, it still goes to the same service
+IP on port 443, where `istio-ingressgateway` service has HTTPS exposed.
+
+Note: If we would have set the IP address to be the one from the node, and would have make the request
+on NodePort (naturally, from outside the cluster), the first request would go on port 31380, it would be
+redirected to the same Node IP address on port 443, where nothing is running, so the request would fail.
