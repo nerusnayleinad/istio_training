@@ -486,6 +486,115 @@ v3.11.5-39-g0b5b5381b3 [http://dl-cdn.alpinelinux.org/alpine/v3.11/community]
 # el ficher egress, y se llama se-alpine.yaml.
 
 $ kubectl create -f se-alpine.yaml -n istio
+serviceentry.networking.istio.io/se-alpinelinux created
+$ kubectl exec -it alpine-7b8bb54698-qsfgj -n istio sh
+/ # apk update
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/community/x86_64/APKINDEX.tar.gz
+v3.11.5-41-g3deb517cec [http://dl-cdn.alpinelinux.org/alpine/v3.11/main]
+v3.11.5-39-g0b5b5381b3 [http://dl-cdn.alpinelinux.org/alpine/v3.11/community]
+OK: 11268 distinct packages available
+/ #
+
+# Ahora vamos a probar salir por istio-egressgateway. Queremos hacer las llamadas
+# al ackstorm.com. Pero aún ni siquiera puedo llegar a ackstorm.com
+
+/ # curl -sL -o /dev/null -D - http://ackstorm.com/ 2>/dev/null
+HTTP/1.1 502 Bad Gateway
+location: http://ackstorm.com/
+date: Thu, 09 Apr 2020 03:01:01 GMT
+server: envoy
+content-length: 0
+
+# Vamos a crear el ServiceEntry se-ack.yaml, y probarlo otra vez.
+$ kubectl create -f se-ack.yaml -n istio
+$ kubectl exec -it alpine-7b8bb54698-qsfgj -n istio sh
+/ # curl -sL -o /dev/null -D - http://ackstorm.com/ 2>/dev/null
+HTTP/1.1 302 Found
+location: https://ackstorm.com:443/
+date: Thu, 09 Apr 2020 03:02:16 GMT
+content-length: 5
+content-type: text/plain; charset=utf-8
+x-envoy-upstream-service-time: 30
+server: envoy
+
+HTTP/2 301
+cache-control: max-age=3600
+content-type: text/html; charset=UTF-8
+date: Thu, 09 Apr 2020 03:02:16 GMT
+expires: Thu, 09 Apr 2020 04:02:17 GMT
+location: https://www.ackstorm.com/
+server: Apache/2.4.38 (Debian)
+vary: Accept-Encoding,Cookie
+x-powered-by: PHP/7.2.29
+x-redirect-by: WordPress
+content-length: 0
+
+HTTP/2 200
+cache-control: max-age=3, must-revalidate
+content-type: text/html; charset=UTF-8
+date: Thu, 09 Apr 2020 03:02:18 GMT
+vary: Accept-Encoding,Cookie, X-Device, X-Vary-TCDN
+age: 0
+tp-cache: MISS
+accept-ranges: bytes
+
+# Ya podemos llegar! Vamos a configurar el mesh, para que el tráfico hacía la
+# página de ackstorm salga por istio-egressgateway. para ello, vamos a crear los
+# objetos Gateway, VirtualService y DestinationRule del fichero egress.
+#
+# Volvemos a hacer la llamada, pero esta vez vamos a poner el ojo en los logs de
+# istio-egressgateway
+
+@Terminal_1
+$ kubectl logs -f istio-egressgateway-b647d487b-67gvg -n istio-system
+
+# Después de la llamada del Terminal_1
+[2020-04-09T03:12:28.979Z] "GET / HTTP/2" 302 - "-" "-" 0 5 19 15 "10.56.1.47" "curl/7.67.0" "5c6e8d6f-5d76-9508-acc8-52f7cc9bd8c0" "ackstorm.com" "146.148.10.209:80" outbound|80||ackstorm.com - 10.56.1.41:80 10.56.1.47:53534 ackstorm.com -
+
+@Terminal_2
+$ kubectl exec -it alpine-7b8bb54698-qsfgj -n istio sh
+Defaulting container name to alpine.
+Use 'kubectl describe pod/alpine-7b8bb54698-qsfgj -n istio' to see all of the containers in this pod.
+/ # curl -sL -o /dev/null -D - http://ackstorm.com/ 2>/dev/null
+HTTP/1.1 302 Found
+location: https://ackstorm.com:443/
+date: Thu, 09 Apr 2020 03:11:10 GMT
+content-length: 5
+content-type: text/plain; charset=utf-8 
+x-envoy-upstream-service-time: 41  
+server: envoy
+
+HTTP/2 301
+cache-control: max-age=3600
+content-type: text/html; charset=UTF-8
+date: Thu, 09 Apr 2020 03:11:11 GMT
+expires: Thu, 09 Apr 2020 04:11:11 GMT
+location: https://www.ackstorm.com/
+server: Apache/2.4.38 (Debian)
+vary: Accept-Encoding,Cookie
+x-powered-by: PHP/7.2.29
+x-redirect-by: WordPress
+content-length: 0
+
+HTTP/2 200
+cache-control: max-age=3, must-revalidate
+content-type: text/html; charset=UTF-8
+date: Thu, 09 Apr 2020 03:11:12 GMT
+vary: Accept-Encoding,Cookie, X-Device, X-Vary-TCDN
+age: 0
+tp-cache: MISS
+accept-ranges: bytes
+
+# istio-egressgateway utiliza los certificado del directorio del objeto Gateway
+# para hacer las llamadas.
+
+$ kubectl exec -it istio-egressgateway-b647d487b-67gvg -n istio-system bash
+root@istio-egressgateway-b647d487b-67gvg:/# ls /etc/certs
+cert-chain.pem  key.pem  root-cert.pem
+
+--------------------------------------------------------------------------------
+
 
 ********************************************************************************
 *                                 TRACING                                      *
