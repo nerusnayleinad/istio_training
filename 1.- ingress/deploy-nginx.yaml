@@ -22,7 +22,7 @@ spec:
           containerPort: 80
         volumeMounts:
         - name: configmap-landing
-          mountPath: /usr/share/nginx/html/pathn
+          mountPath: /usr/share/nginx/html/path1
       volumes:
         - name: configmap-landing
           configMap:
